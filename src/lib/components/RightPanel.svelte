@@ -113,7 +113,7 @@
   </div>
 
   <!-- Real-time sync output content area -->
-  <div class="flex-1 overflow-y-auto min-h-0 bg-[#0d1117]">
+  <div class="flex-1 overflow-auto min-h-0 bg-[#0d1117]">
     <!-- RENDERED GITHUB LAYOUT -->
     {#if rightTab === 'preview'}
       <div class="markdown-body select-text p-6 md:p-8 max-w-4xl mx-auto">
@@ -127,7 +127,7 @@
       <div class="h-full flex font-mono text-xs text-indigo-100 bg-[#0f1420]">
         <!-- Gutter Gutter Line Numbers -->
         <div class="select-none text-right pr-3 pl-2.5 text-slate-600 bg-slate-950/20 py-6 border-r border-slate-850 shrink-0 min-w-[3.25rem]">
-          {#each Array(lineNumbers) as _, idx}
+          {#each Array(lineNumbers) as _, idx (idx)}
             <div class="h-5 leading-5">{idx + 1}</div>
           {/each}
         </div>

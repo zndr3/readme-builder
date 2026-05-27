@@ -153,7 +153,7 @@
             <div class="fixed inset-0 z-40" onclick={() => showAddDropdown = false}></div>
             <div class="absolute right-0 mt-2 w-72 bg-slate-950 border border-slate-850 rounded-xl shadow-2xl p-2 z-50 max-h-96 overflow-y-auto">
               <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-slate-900">Select Section Template</h4>
-              {#each availableWidgetTypes as widget}
+              {#each availableWidgetTypes as widget (widget.type)}
                 {@const Icon = getSectionIcon(widget.type)}
                 <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-900 flex items-start space-x-2.5 transition group" onclick={() => addNewSection(widget.type)}>
                   <div class="w-6 h-6 rounded bg-slate-900 border border-slate-800 group-hover:bg-indigo-600 group-hover:border-indigo-500 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-white transition">

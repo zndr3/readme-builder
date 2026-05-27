@@ -149,7 +149,7 @@
       </div>
 
       <!-- Divider -->
-      <span class="h-5 w-[1px] bg-slate-800/80"></span>
+      <span class="h-5 w-1px bg-slate-800/80"></span>
 
       <!-- Action Buttons -->
       <div class="flex items-center space-x-1.5">

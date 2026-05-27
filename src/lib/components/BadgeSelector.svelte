@@ -1,7 +1,7 @@
 <script lang="ts">
   import { techBadgesCatalog, type TechBadge } from '../utils/badges';
   import { createSection, type READMESection } from '../utils/sections';
-  import { Search, Plus, Palette, HelpCircle, Check, Star } from 'lucide-svelte';
+  import { Search, Plus, Palette, Check, Star } from 'lucide-svelte';
 
   // Svelte 5 props
   let { sections = $bindable() } = $props<{ sections: READMESection[] }>();
@@ -127,7 +127,7 @@
         { id: 'backend', label: 'Backend' },
         { id: 'database', label: 'Databases' },
         { id: 'devops', label: 'Devops' }
-      ] as tab}
+      ] as tab (tab.id)}
         <button class="px-2 py-1 rounded text-[10px] font-semibold transition-all {selectedCategory === tab.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}" onclick={() => selectedCategory = tab.id as any}>
           {tab.label}
         </button>
@@ -138,7 +138,7 @@
   <!-- Badges Catalog Grid -->
   <div class="max-h-48 overflow-y-auto pr-1">
     <div class="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-2">
-      {#each filteredCatalog as badge}
+      {#each filteredCatalog as badge (badge.label)}
         <button class="group p-2 bg-slate-900 hover:bg-slate-850 border border-slate-800/80 rounded-lg flex items-center justify-between text-left transition duration-200" onclick={() => addBadge(badge)}>
           <div class="flex items-center space-x-2 truncate">
             <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: #{badge.color}"></span>
@@ -192,7 +192,7 @@
     <div class="space-y-1">
       <label class="block text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Quick Colors</label>
       <div class="flex flex-wrap gap-1">
-        {#each colorPresets as preset}
+        {#each colorPresets as preset (preset.name)}
           <button type="button" class="w-5 h-5 rounded-full border border-slate-800 transition transform hover:scale-110 flex items-center justify-center shrink-0 relative" style="background-color: #{preset.hex}" onclick={() => customBadge.color = preset.hex} title={preset.name}>
             {#if customBadge.color === preset.hex}
               <Check class="w-2.5 h-2.5 text-white stroke-[3px]" />

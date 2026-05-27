@@ -104,18 +104,38 @@ export function compileSection(section: READMESection, allSections: READMESectio
       return md;
     }
 
-    case 'env-vars': {
-      const vars = content.vars || [];
-      if (vars.length === 0) return '';
-      let md = `## Environment Variables\n\nTo run this project, you will need to add the following environment variables to your \`.env\` file:\n\n`;
-      md += `| Variable | Description | Default |\n`;
-      md += `| :--- | :--- | :--- |\n`;
-      vars.forEach((v: any) => {
-        md += `| \`${v.name}\` | ${v.description} | \`${v.defaultValue}\` |\n`;
-      });
-      md += '\n';
-      return md;
-    }
+   case 'env-vars': {
+    const vars = content.vars || [];
+    if (vars.length === 0) return '';
+    
+    let md = `## Environment Variables\n\nTo run this project, you will need to add the following environment variables to your \`.env\` file:\n\n`;
+    
+    // Start HTML Table with explicit column widths and wrapping styles
+    md += `<table style="width: 100%; table-layout: fixed; border-collapse: collapse;">\n`;
+    md += `  <thead>\n`;
+    md += `    <tr>\n`;
+    md += `      <th style="width: 30%; text-align: left;">Variable</th>\n`;
+    md += `      <th style="width: 50%; text-align: left;">Description</th>\n`;
+    md += `      <th style="width: 20%; text-align: left;">Default</th>\n`;
+    md += `    </tr>\n`;
+    md += `  </thead>\n`;
+    md += `  <tbody>\n`;
+    
+    vars.forEach((v: any) => {
+      const defaultVal = v.defaultValue ? `<code>${v.defaultValue}</code>` : '—';
+      
+      md += `    <tr>\n`;
+      md += `      <td style="word-break: break-all; vertical-align: top;"><code>${v.name}</code></td>\n`;
+      md += `      <td style="word-wrap: break-word; white-space: normal; vertical-align: top;">${v.description}</td>\n`;
+      md += `      <td style="word-break: break-all; vertical-align: top;">${defaultVal}</td>\n`;
+      md += `    </tr>\n`;
+    });
+    
+    md += `  </tbody>\n`;
+    md += `</table>\n\n`;
+    
+    return md;
+  }
 
     case 'api-setup': {
       const { endpoint, method, headers, body, response } = content;
