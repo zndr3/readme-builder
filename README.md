@@ -196,29 +196,13 @@ Contributions are welcome! Here's how:
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
----
-
-## 📝 License
-
-This project is licensed under the MIT License—see [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙋 Support
 
-Found a bug or have a feature request? [Open an issue](https://github.com/yourusername/readme-builder/issues)!
+Found a bug or have a feature request? [Open an issue](https://github.com/zndr3/readme-builder/issues)!
 
 ---
 
-## 🎯 Roadmap
-
-- [ ] Dark mode toggle
-- [ ] Markdown file import/parsing
-- [ ] GitHub API integration for auto-populating README from repo
-- [ ] Collaborative editing with live sync
-- [ ] Custom CSS styling options
-- [ ] README.md analytics and statistics
-
----
-
-**Made with ❤️ by [Your Name]**
+**Made with 🐞 by Zander**
