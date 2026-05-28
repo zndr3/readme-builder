@@ -1,6 +1,6 @@
 <script lang="ts">
   import { marked } from 'marked';
-  import { FileText, Eye, Code, Copy, Download, Check, AlertCircle } from 'lucide-svelte';
+  import { Eye, Code, Copy, Download, Check } from 'lucide-svelte';
 
   // Svelte 5 props
   let { 
@@ -16,6 +16,9 @@
 
   // Copy-to-clipboard state
   let copied = $state(false);
+  
+  // Track raw markdown separately for copying using derived state
+  const rawMarkdown = $derived(markdown);
 
   // Compile raw Markdown into HTML using the marked library.
   // Using Svelte 5 reactive derived variables ($derived) for instant, low-overhead sync.
@@ -30,7 +33,7 @@
       return marked.parse(markdown) as string;
     } catch (e) {
       return `<div class="text-red-400 p-4 border border-red-900 bg-red-950/20 rounded">
-        <h4 class="font-bold flex items-center"><AlertCircle class="w-4 h-4 mr-1.5" /> Markdown Rendering Error</h4>
+        <h4 class="font-bold">Markdown Rendering Error</h4>
         <p class="text-xs mt-1 font-mono">${(e as Error).message}</p>
       </div>`;
     }
@@ -49,14 +52,21 @@
     onRawChange(text); // Notify parent layout to sync Svelte forms state
   }
 
-  // Copy Markdown to Clipboard
+  // Copy Raw Markdown to Clipboard
   async function copyToClipboard() {
     try {
-      await navigator.clipboard.writeText(markdown);
+      // Copy only the raw markdown text (not builder state)
+      // Remove the embedded Base64 state comment before copying
+      let markdownToCopy = markdown || '';
+      markdownToCopy = markdownToCopy.replace(/<!--\s*readme-builder-state:\s*[A-Za-z0-9+/=]+\s*-->\n?/g, '').trim();
+      
+      await navigator.clipboard.writeText(markdownToCopy);
       copied = true;
-      setTimeout(() => copied = false, 2000);
+      setTimeout(() => {
+        copied = false;
+      }, 2000);
     } catch (err) {
-      console.error('Failed to copy text: ', err);
+      console.error('Failed to copy markdown to clipboard: ', err);
     }
   }
 
@@ -126,8 +136,8 @@
     {#if rightTab === 'editor'}
       <div class="h-full flex font-mono text-xs text-indigo-100 bg-[#0f1420]">
         <!-- Gutter Gutter Line Numbers -->
-        <div class="select-none text-right pr-3 pl-2.5 text-slate-600 bg-slate-950/20 py-6 border-r border-slate-850 shrink-0 min-w-[3.25rem]">
-          {#each Array(lineNumbers) as _, idx (idx)}
+        <div class="select-none text-right pr-3 pl-2.5 text-slate-600 bg-slate-950/20 py-6 border-r border-slate-850 shrink-0 min-w-13">
+          {#each Array.from({length: lineNumbers}) as _, idx (idx)}
             <div class="h-5 leading-5">{idx + 1}</div>
           {/each}
         </div>
