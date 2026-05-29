@@ -8,11 +8,19 @@
   import { 
     GripVertical, Eye, EyeOff, Copy, Trash2, ChevronDown, ChevronRight, Plus, 
     Layers, Image as ImageIcon, Code, CheckSquare, Settings, HelpCircle, 
-    FileText, Globe, Key, List, Info, Sparkles, BookOpen
+    FileText, Globe, Key, List, Info, Sparkles, BookOpen, Send
   } from 'lucide-svelte';
 
   // Svelte 5 props
-  let { sections = $bindable() } = $props<{ sections: READMESection[] }>();
+  let { 
+    sections = $bindable(),
+    currentRepo = null,
+    onOpenCommit
+  } = $props<{ 
+    sections: READMESection[];
+    currentRepo: any;
+    onOpenCommit?: () => void;
+  }>();
 
   // Left Panel Sub-tabs: 'widgets' | 'badges' | 'images'
   let activeTab = $state<'widgets' | 'badges' | 'images'>('widgets');
@@ -141,32 +149,43 @@
       <div class="flex justify-between items-center shrink-0">
         <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Sections ({sections.length})</span>
         
-        <!-- Add Section Button -->
-        <div class="relative">
-          <button class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs font-bold flex items-center transition shadow-md" onclick={() => showAddDropdown = !showAddDropdown}>
-            <Plus class="w-3.5 h-3.5 mr-1" /> Add Section
-          </button>
-          
-          {#if showAddDropdown}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="fixed inset-0 z-40" onclick={() => showAddDropdown = false}></div>
-            <div class="absolute right-0 mt-2 w-72 bg-slate-950 border border-slate-850 rounded-xl shadow-2xl p-2 z-50 max-h-96 overflow-y-auto">
-              <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-slate-900">Select Section Template</h4>
-              {#each availableWidgetTypes as widget (widget.type)}
-                {@const Icon = getSectionIcon(widget.type)}
-                <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-900 flex items-start space-x-2.5 transition group" onclick={() => addNewSection(widget.type)}>
-                  <div class="w-6 h-6 rounded bg-slate-900 border border-slate-800 group-hover:bg-indigo-600 group-hover:border-indigo-500 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-white transition">
-                    <Icon class="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <h5 class="text-xs font-bold text-slate-200 group-hover:text-indigo-400 transition">{widget.name}</h5>
-                    <p class="text-[10px] text-slate-500 mt-0.5 leading-normal">{widget.desc}</p>
-                  </div>
-                </button>
-              {/each}
-            </div>
+        <div class="flex items-center space-x-2">
+          {#if currentRepo && onOpenCommit}
+            <button 
+              class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-bold flex items-center transition shadow-md cursor-pointer"
+              onclick={onOpenCommit}
+            >
+              <Send class="w-3.5 h-3.5 mr-1" /> Commit
+            </button>
           {/if}
+
+          <!-- Add Section Button -->
+          <div class="relative">
+            <button class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs font-bold flex items-center transition shadow-md cursor-pointer" onclick={() => showAddDropdown = !showAddDropdown}>
+              <Plus class="w-3.5 h-3.5 mr-1" /> Add Section
+            </button>
+            
+            {#if showAddDropdown}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="fixed inset-0 z-40" onclick={() => showAddDropdown = false}></div>
+              <div class="absolute right-0 mt-2 w-72 bg-slate-950 border border-slate-850 rounded-xl shadow-2xl p-2 z-50 max-h-96 overflow-y-auto">
+                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-slate-900">Select Section Template</h4>
+                {#each availableWidgetTypes as widget (widget.type)}
+                  {@const Icon = getSectionIcon(widget.type)}
+                  <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-900 flex items-start space-x-2.5 transition group" onclick={() => addNewSection(widget.type)}>
+                    <div class="w-6 h-6 rounded bg-slate-900 border border-slate-800 group-hover:bg-indigo-600 group-hover:border-indigo-500 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-white transition">
+                      <Icon class="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h5 class="text-xs font-bold text-slate-200 group-hover:text-indigo-400 transition">{widget.name}</h5>
+                      <p class="text-[10px] text-slate-500 mt-0.5 leading-normal">{widget.desc}</p>
+                    </div>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
 
