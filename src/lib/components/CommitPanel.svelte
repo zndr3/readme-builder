@@ -75,11 +75,11 @@
           message: result.message || 'An error occurred during committing.'
         };
       }
-    } catch (e: any) {
-      console.error('Commit failed:', e);
+    } catch (err: unknown) {
+      console.error('Commit failed:', err);
       commitResult = {
         success: false,
-        message: e.message || 'Network error occurred. Please try again.'
+        message: err instanceof Error ? err.message : 'Network error occurred. Please try again.'
       };
     } finally {
       isSubmitting = false;
