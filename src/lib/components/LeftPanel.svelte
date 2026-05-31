@@ -194,7 +194,7 @@
         use:dndzone={{ items: sections, flipDurationMs: 200, dragDisabled: false, dropTargetStyle: {} }} 
         onconsider={handleDndConsider} 
         onfinalize={handleDndFinalize} 
-        class="space-y-3 min-h-[300px] pb-10"
+        class="space-y-3 min-h-300px pb-10"
       >
         {#each sections as section, idx (section.id)}
           {@const Icon = getSectionIcon(section.type)}

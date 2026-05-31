@@ -1,14 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { templatePresets } from '$lib/utils/presets';
-  import { createSection, type READMESection, defaultSectionContent } from '$lib/utils/sections';
+  import { createSection, type READMESection } from '$lib/utils/sections';
   import { compileMarkdown, parseMarkdown } from '$lib/utils/markdown-generator';
+  import { compileScannedReadme, BADGE_REGISTRY } from '$lib/utils/heuristics';
   import LeftPanel from '$lib/components/LeftPanel.svelte';
   import RightPanel from '$lib/components/RightPanel.svelte';
+  import RepoPickerModal from '$lib/components/RepoPickerModal.svelte';
+  import ReadmeImportModal from '$lib/components/ReadmeImportModal.svelte';
+  import CommitPanel from '$lib/components/CommitPanel.svelte';
+  
   import { 
     Layers, Briefcase, Package, Smartphone, Cpu, Zap, Settings, 
-    Gamepad, ChevronDown, Trash2, RotateCcw, AlertTriangle, FileCode, CheckCircle2
+    Gamepad, ChevronDown, Trash2, RotateCcw, LogOut, Loader2
   } from 'lucide-svelte';
+
+  // Session Data from Layout (Svelte 5 pages receive data as a prop)
+  interface SessionData {
+    user: { name: string; avatar_url: string; login: string } | null;
+  }
+  let { data } = $props<{ data: SessionData }>();
+  const user = $derived(data.user);
 
   // Global Reactive States in Svelte 5
   let sections = $state<READMESection[]>([]);
@@ -19,8 +31,37 @@
   let showPresetsDropdown = $state(false);
   let activePresetName = $state('Fullstack App');
 
+  // Scanner & GitHub integration states
+  let showRepoPicker = $state(false);
+  let showImportModal = $state(false);
+  let showCommitPanel = $state(false);
+  let isScanning = $state(false);
+  
+  interface ScannedPayload {
+    projectName: string;
+    description: string;
+    isNode: boolean;
+    isPython: boolean;
+    packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun' | 'pip' | 'unknown';
+    installCommands: string;
+    runCommands: string;
+    detectedTechnologies: string[];
+    envVars: Array<{ name: string; description: string; defaultValue: string }>;
+    license: { type: string; author: string; year: string } | null;
+    screenshots: Array<{ url: string; alt: string; caption: string }>;
+    folderTree: string;
+    existingReadme: string | null;
+  }
+  let scannedPayload = $state<ScannedPayload | null>(null);
+  
+  let currentRepo = $state<{
+    owner: string;
+    name: string;
+    defaultBranch: string;
+    originalReadme: string;
+  } | null>(null);
+
   // Trigger compiler sync: whenever sections array properties change, compile to raw markdown
-  // Svelte 5 $effect automatically tracks deep dependencies in the sections array!
   $effect(() => {
     if (!isEditingRaw) {
       markdown = compileMarkdown(sections);
@@ -43,11 +84,11 @@
   function loadPreset(key: string) {
     const preset = templatePresets[key];
     if (preset) {
-      // Deep clone template widgets array to prevent binding mutations
       sections = JSON.parse(JSON.stringify(preset.sections));
       activePresetName = preset.name;
       isEditingRaw = false; // Reset raw edit lock to force fresh compile
       showPresetsDropdown = false;
+      currentRepo = null; // Clear working repo when moving to local presets
     }
   }
 
@@ -61,6 +102,7 @@
     ];
     activePresetName = 'Custom README';
     isEditingRaw = false;
+    currentRepo = null;
   }
 
   // Clear workspace empty
@@ -69,6 +111,120 @@
     activePresetName = 'Blank';
     markdown = '';
     isEditingRaw = false;
+    currentRepo = null;
+  }
+
+  // Repository scan handler
+  async function handleSelectRepo(repoInfo: { owner: string; name: string; defaultBranch: string }) {
+    isScanning = true;
+    try {
+      const res = await fetch(`/api/github/scan?owner=${repoInfo.owner}&repo=${repoInfo.name}&branch=${repoInfo.defaultBranch}`);
+      if (!res.ok) {
+        alert('Scanning failed. Please make sure your authorization has not expired.');
+        return;
+      }
+
+      const payload = await res.json();
+      scannedPayload = payload;
+      currentRepo = {
+        owner: repoInfo.owner,
+        name: repoInfo.name,
+        defaultBranch: repoInfo.defaultBranch,
+        originalReadme: payload.existingReadme || ''
+      };
+
+      if (payload.existingReadme) {
+        // Show options modal since repository already has README.md
+        showImportModal = true;
+      } else {
+        // Standard scan layout generation
+        sections = compileScannedReadme(payload);
+        activePresetName = `Scanned: ${payload.projectName}`;
+        isEditingRaw = false;
+      }
+    } catch (e) {
+      console.error('Scan operations failed:', e);
+    } finally {
+      isScanning = false;
+    }
+  }
+
+  // Readme Import Modals Option Callback
+  function handleImportOption(option: 'improve' | 'replace' | 'merge') {
+    if (!scannedPayload) return;
+
+    if (option === 'replace') {
+      sections = compileScannedReadme(scannedPayload);
+      activePresetName = `Scanned: ${scannedPayload.projectName}`;
+    } else if (option === 'merge') {
+      const original = parseMarkdown(scannedPayload.existingReadme || '');
+      const scanned = compileScannedReadme(scannedPayload);
+      
+      // Filter out redundant titles and descriptions from scanned layout
+      const additional = scanned.filter(s => s.type !== 'title' && s.type !== 'description');
+      sections = [...original, ...additional];
+      activePresetName = `Merged: ${scannedPayload.projectName}`;
+    } else if (option === 'improve') {
+      const original = parseMarkdown(scannedPayload.existingReadme || '');
+
+      // A. Merge detected stack badges
+      let techSec = original.find(s => s.type === 'tech-stack');
+      if (!techSec && scannedPayload.detectedTechnologies.length > 0) {
+        techSec = createSection('tech-stack');
+        techSec.content.badges = [];
+        const titleIdx = original.findIndex(s => s.type === 'title');
+        const descIdx = original.findIndex(s => s.type === 'description');
+        const insertAt = Math.max(0, titleIdx, descIdx) + 1;
+        original.splice(insertAt, 0, techSec);
+      }
+      
+      if (techSec && scannedPayload.detectedTechnologies.length > 0) {
+        const existingLabels = new Set(techSec.content.badges.map((b: { label: string }) => b.label.toLowerCase()));
+        scannedPayload.detectedTechnologies.forEach((tech: string) => {
+          const key = tech.toLowerCase().replace(/[^a-z]/g, '');
+          if (BADGE_REGISTRY[key] && !existingLabels.has(tech.toLowerCase())) {
+            techSec.content.badges.push({ ...BADGE_REGISTRY[key] });
+          }
+        });
+      }
+
+      // B. Merge lockfile setup commands
+      let installSec = original.find(s => s.type === 'installation');
+      if (!installSec && scannedPayload.installCommands) {
+        installSec = createSection('installation');
+        original.push(installSec);
+      }
+      if (installSec && (!installSec.content.commands || installSec.content.commands.trim().startsWith('# Clone the repository'))) {
+        installSec.content.commands = scannedPayload.installCommands;
+        installSec.content.prerequisites = scannedPayload.isNode ? 'Node.js v18+' : scannedPayload.isPython ? 'Python 3.9+' : '';
+      }
+
+      // C. Populate env variables table if missing
+      let envSec = original.find(s => s.type === 'env-vars');
+      if (!envSec && scannedPayload.envVars && scannedPayload.envVars.length > 0) {
+        envSec = createSection('env-vars');
+        envSec.content.vars = scannedPayload.envVars.map((v: { name: string; description?: string; defaultValue?: string }) => ({
+          name: v.name,
+          description: v.description,
+          defaultValue: v.defaultValue
+        }));
+        original.push(envSec);
+      }
+
+      // D. Populate folder structure tree if missing
+      let folderSec = original.find(s => s.type === 'folder-structure');
+      if (!folderSec) {
+        folderSec = createSection('folder-structure');
+        folderSec.content.tree = scannedPayload.folderTree;
+        folderSec.content.explanation = 'Auto-scanned layout listing primary folders and configs.';
+        original.push(folderSec);
+      }
+
+      sections = original;
+      activePresetName = `Enriched: ${scannedPayload.projectName}`;
+    }
+
+    isEditingRaw = false; // Reset to force compilation sync
   }
 
   // Bootstrapping: load "Fullstack App" template as default starter layout
@@ -107,19 +263,21 @@
         <Zap class="w-5 h-5 fill-white/10" />
       </div>
       <div>
-        <h1 class="text-sm md:text-base font-extrabold tracking-tight text-white flex items-center">
+        <h1 class="text-xs md:text-sm font-extrabold tracking-tight text-white flex items-center">
           GitHub README Builder
-          <span class="ml-2 px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-900/50 text-[10px] font-bold text-indigo-400">Beta</span>
+          <span class="ml-2 px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-900/50 text-[10px] font-bold text-indigo-400">Intelligent</span>
         </h1>
-        <p class="text-[10px] text-slate-500 font-medium">Build professional documentations in real-time</p>
+        <p class="text-[9px] text-slate-500 font-medium">Build professional documentations in real-time</p>
       </div>
     </div>
 
-    <!-- Active Template Preset dropdown -->
-    <div class="flex items-center space-x-3">
-      <div class="relative">
+    <!-- Active Template Preset dropdown & Auth controllers -->
+    <div class="flex items-center space-x-3.5">
+      
+      <!-- Preset Dropdown -->
+      <div class="relative hidden sm:block">
         <button class="px-3.5 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-lg text-xs font-bold text-slate-200 hover:text-white flex items-center space-x-2 transition shadow-sm" onclick={() => showPresetsDropdown = !showPresetsDropdown}>
-          <span class="text-slate-400">Template:</span>
+          <span class="text-slate-400">Boilerplate:</span>
           <span class="text-indigo-400">{activePresetName}</span>
           <ChevronDown class="w-3.5 h-3.5 text-slate-500" />
         </button>
@@ -129,7 +287,7 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="fixed inset-0 z-40" onclick={() => showPresetsDropdown = false}></div>
           <div class="absolute right-0 mt-2 w-72 bg-slate-950 border border-slate-850 rounded-xl shadow-2xl p-2.5 z-50">
-            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-slate-900">Choose Project Boilerplate</h3>
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-1 mb-1 border-b border-slate-900">Choose Project Template</h3>
             <div class="space-y-1 mt-1 max-h-80 overflow-y-auto">
               {#each Object.entries(templatePresets) as [key, preset]}
                 {@const Icon = getPresetIcon(key)}
@@ -149,7 +307,7 @@
       </div>
 
       <!-- Divider -->
-      <span class="h-5 w-1px bg-slate-800/80"></span>
+      <span class="h-5 w-[1px] bg-slate-800/80 hidden sm:inline"></span>
 
       <!-- Action Buttons -->
       <div class="flex items-center space-x-1.5">
@@ -162,6 +320,57 @@
           <span class="hidden md:inline">Clear Workspace</span>
         </button>
       </div>
+
+      <!-- Divider -->
+      <span class="h-5 w-[1px] bg-slate-800/80"></span>
+
+      <!-- Secure GitHub OAuth Integration -->
+      <div class="flex items-center space-x-2">
+        {#if user}
+          <!-- User Session Info -->
+          <div class="flex items-center space-x-2 border border-slate-850 px-2 py-1 rounded-lg bg-slate-950/30">
+            <img src={user.avatar_url} alt={user.name} class="w-5 h-5 rounded-full border border-slate-800" />
+            <span class="text-xs font-bold text-slate-200 hidden md:inline">{user.name}</span>
+          </div>
+
+          <!-- Import repo -->
+          <button 
+            class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-md shadow-indigo-600/10 cursor-pointer disabled:opacity-60"
+            onclick={() => showRepoPicker = true}
+            disabled={isScanning}
+          >
+            {#if isScanning}
+              <Loader2 class="w-3.5 h-3.5 animate-spin" />
+              <span>Scanning...</span>
+            {:else}
+              <Package class="w-3.5 h-3.5" />
+              <span class="hidden md:inline">Import Repository</span>
+              <span class="inline md:hidden">Import</span>
+            {/if}
+          </button>
+
+          <!-- Logout -->
+          <form action="/auth/logout" method="POST" class="inline">
+            <button 
+              type="submit" 
+              class="p-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-500 hover:text-red-400 rounded-lg text-xs transition cursor-pointer" 
+              title="Log Out"
+            >
+              <LogOut class="w-3.5 h-3.5" />
+            </button>
+          </form>
+        {:else}
+          <!-- GitHub Login Button -->
+          <button 
+            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 border border-indigo-500/30 text-indigo-400 hover:text-indigo-300 rounded-lg text-xs font-bold transition flex items-center space-x-2 shadow-sm cursor-pointer"
+            onclick={() => window.location.href = '/auth/login'}
+          >
+            <Package class="w-3.5 h-3.5 fill-indigo-400/10" />
+            <span>Connect GitHub</span>
+          </button>
+        {/if}
+      </div>
+
     </div>
   </header>
 
@@ -169,7 +378,11 @@
   <main class="flex-1 w-full flex overflow-hidden">
     <!-- Split Pane 1: Left Form / Widget builder -->
     <section class="w-full lg:w-[42%] xl:w-[35%] h-full shrink-0">
-      <LeftPanel bind:sections />
+      <LeftPanel 
+        bind:sections 
+        currentRepo={currentRepo} 
+        onOpenCommit={() => showCommitPanel = true} 
+      />
     </section>
 
     <!-- Split Pane 2: Right Live Rendered / Raw editor output -->
@@ -180,4 +393,24 @@
       />
     </section>
   </main>
+
+  <!-- Interactive Integrations Modals -->
+  <RepoPickerModal 
+    bind:isOpen={showRepoPicker} 
+    onSelectRepo={handleSelectRepo} 
+  />
+
+  <ReadmeImportModal 
+    bind:isOpen={showImportModal} 
+    onSelectOption={handleImportOption} 
+  />
+
+  <CommitPanel 
+    bind:isOpen={showCommitPanel} 
+    owner={currentRepo?.owner || ''} 
+    repo={currentRepo?.name || ''} 
+    branch={currentRepo?.defaultBranch || 'main'} 
+    newMarkdown={markdown} 
+    originalMarkdown={currentRepo?.originalReadme || ''} 
+  />
 </div>

@@ -54,15 +54,15 @@
   // Adds selected badge into the README's active 'tech-stack' section
   function addBadge(badge: { label: string; message: string; color: string; logo: string }) {
     // 1. Locate active tech-stack widget in sections list
-    let techSec = sections.find(s => s.type === 'tech-stack');
+    let techSec = sections.find((s: READMESection) => s.type === 'tech-stack');
     
     // 2. If it doesn't exist, create a new one and append it to the workspace
     if (!techSec) {
       techSec = createSection('tech-stack');
       techSec.content.badges = []; // Start fresh
       // Insert right after the title/description if possible, or at the top
-      const titleIndex = sections.findIndex(s => s.type === 'title');
-      const descIndex = sections.findIndex(s => s.type === 'description');
+      const titleIndex = sections.findIndex((s: READMESection) => s.type === 'title');
+      const descIndex = sections.findIndex((s: READMESection) => s.type === 'description');
       const insertAt = Math.max(0, titleIndex, descIndex) + 1;
       sections.splice(insertAt, 0, techSec);
     }
