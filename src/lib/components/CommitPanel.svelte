@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { X, Send, GitBranch, AlertTriangle, FileCode, CheckCircle, ExternalLink, RefreshCw } from 'lucide-svelte';
+  import { X, Send, GitBranch, AlertTriangle, FileCode, CheckCircle, ExternalLink, RefreshCw, Image as ImageIcon } from 'lucide-svelte';
+  import { assets } from '../stores/assets';
 
   // Props in Svelte 5
   let {
@@ -23,7 +24,17 @@
   let commitMessage = $state('docs: update README.md using README Builder');
   let targetBranch = $state(branch);
   let isSubmitting = $state(false);
-  let commitResult = $state<{ success: boolean; commitSha?: string; htmlUrl?: string; message?: string } | null>(null);
+  let uploadProgress = $state<{ current: number; total: number } | null>(null);
+  let commitResult = $state<{ success: boolean; commitSha?: string; htmlUrl?: string; message?: string; assets?: any[]; assetCount?: number } | null>(null);
+
+  // Get current assets from store
+  let currentAssets = $state<any[]>([]);
+  
+  $effect(() => {
+    assets.subscribe(assetList => {
+      currentAssets = assetList;
+    })();
+  });
 
   // Synchronize targetBranch when branch prop updates
   $effect(() => {
@@ -42,12 +53,55 @@
     };
   });
 
+  /**
+   * Convert File to Base64 string
+   */
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Prepare assets for upload
+   */
+  async function prepareAssets() {
+    const assetPayloads = [];
+    
+    for (const asset of currentAssets) {
+      try {
+        const base64Content = await fileToBase64(asset.file);
+        assetPayloads.push({
+          fileName: asset.fileName,
+          repositoryPath: asset.repositoryPath,
+          base64Content
+        });
+      } catch (err) {
+        console.error(`Failed to prepare asset ${asset.fileName}:`, err);
+      }
+    }
+    
+    return assetPayloads;
+  }
+
   // Execute the commit fetch operation
   async function handleCommit() {
     isSubmitting = true;
     commitResult = null;
+    uploadProgress = null;
 
     try {
+      // Prepare assets
+      const assetPayloads = await prepareAssets();
+      uploadProgress = { current: 0, total: assetPayloads.length + 1 };
+
       const response = await fetch('/api/github/commit', {
         method: 'POST',
         headers: {
@@ -58,16 +112,21 @@
           repo,
           markdown: newMarkdown,
           commitMessage,
-          branch: targetBranch
+          branch: targetBranch,
+          assets: assetPayloads
         })
       });
+
+      uploadProgress = { current: uploadProgress.total, total: uploadProgress.total };
 
       const result = await response.json();
       if (response.ok && result.success) {
         commitResult = {
           success: true,
           commitSha: result.commitSha,
-          htmlUrl: result.htmlUrl
+          htmlUrl: result.htmlUrl,
+          assets: result.assets,
+          assetCount: result.assetCount
         };
       } else {
         commitResult = {
@@ -83,6 +142,7 @@
       };
     } finally {
       isSubmitting = false;
+      uploadProgress = null;
     }
   }
 
@@ -131,11 +191,30 @@
                 <CheckCircle class="w-6 h-6" />
               </div>
               <div class="space-y-1.5">
-                <h4 class="text-sm font-bold text-white">README.md Committed Successfully!</h4>
+                <h4 class="text-sm font-bold text-white">README & Assets Committed Successfully!</h4>
                 <p class="text-[11px] text-slate-400 max-w-xs mx-auto leading-relaxed">
-                  Your README.md file has been updated and pushed directly to the target branch.
+                  Your README.md file and {commitResult.assetCount || 0} asset{(commitResult.assetCount || 0) !== 1 ? 's' : ''} have been pushed to the target branch.
                 </p>
               </div>
+
+              <!-- Asset upload summary -->
+              {#if commitResult.assets && commitResult.assets.length > 0}
+                <div class="bg-emerald-950/40 border border-emerald-900/40 rounded-lg p-3 text-left space-y-1 max-h-48 overflow-y-auto">
+                  <p class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider mb-2">Assets Uploaded</p>
+                  {#each commitResult.assets as asset}
+                    <div class="flex items-center space-x-2 text-[10px]">
+                      {#if asset.success}
+                        <CheckCircle class="w-3 h-3 text-emerald-400 shrink-0" />
+                        <span class="text-slate-300">{asset.fileName}</span>
+                      {:else}
+                        <AlertTriangle class="w-3 h-3 text-red-400 shrink-0" />
+                        <span class="text-red-300">{asset.fileName}: {asset.message}</span>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
               <div class="flex flex-col gap-2 pt-2 max-w-sm mx-auto">
                 <a 
                   href={commitResult.htmlUrl} 
@@ -175,6 +254,22 @@
           <!-- Configuration Form -->
           <div class="space-y-4">
             
+            <!-- Upload Progress -->
+            {#if uploadProgress}
+              <div class="p-4 bg-indigo-950/30 border border-indigo-900/40 rounded-xl space-y-2">
+                <div class="flex items-center space-x-2 mb-2">
+                  <RefreshCw class="w-4 h-4 text-indigo-400 animate-spin" />
+                  <p class="text-xs font-bold text-indigo-300">Uploading assets... ({uploadProgress.current}/{uploadProgress.total})</p>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    class="h-full bg-indigo-500 transition-all duration-300" 
+                    style="width: {(uploadProgress.current / uploadProgress.total) * 100}%"
+                  />
+                </div>
+              </div>
+            {/if}
+            
             <!-- Commit Inputs -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
               <div>
@@ -210,6 +305,27 @@
                 bind:value={commitMessage} 
               />
             </div>
+
+            <!-- Assets Section -->
+            {#if currentAssets.length > 0}
+              <div class="p-3 bg-slate-950/60 border border-slate-850 rounded-xl space-y-2">
+                <div class="flex items-center space-x-2">
+                  <ImageIcon class="w-4 h-4 text-indigo-400" />
+                  <p class="text-xs font-bold text-slate-200">Assets to Commit ({currentAssets.length})</p>
+                </div>
+                <div class="space-y-1 max-h-32 overflow-y-auto">
+                  {#each currentAssets as asset}
+                    <div class="flex items-center justify-between text-[10px] p-1.5 bg-slate-900/40 rounded border border-slate-800">
+                      <div>
+                        <p class="text-slate-300">{asset.fileName}</p>
+                        <p class="text-slate-500 font-mono">{asset.repositoryPath}</p>
+                      </div>
+                      <span class="text-slate-500 text-[9px]">{(asset.size / 1024).toFixed(1)}KB</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
 
             <!-- Overwrite warning if original markdown existed -->
             {#if originalMarkdown}
