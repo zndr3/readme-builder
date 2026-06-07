@@ -9,7 +9,6 @@
   import RepoPickerModal from '$lib/components/RepoPickerModal.svelte';
   import ReadmeImportModal from '$lib/components/ReadmeImportModal.svelte';
   import CommitPanel from '$lib/components/CommitPanel.svelte';
-  import { assets } from '$lib/stores/assets';
   
   import { 
     Layers, Briefcase, Package, Smartphone, Cpu, Zap, Settings, 
@@ -62,94 +61,10 @@
     originalReadme: string;
   } | null>(null);
 
+  // Trigger compiler sync: whenever sections array properties change, compile to raw markdown
   $effect(() => {
     if (!isEditingRaw) {
       markdown = compileMarkdown(sections);
-    }
-  });
-
-  // Synchronize asset store changes back to the widgets in real-time
-  $effect(() => {
-    const assetList = $assets;
-    let sectionsChanged = false;
-
-    const updatedSections = sections.map(sec => {
-      if (sec.type === 'image') {
-        const asset = assetList.find(a => a.id === sec.content.assetId);
-        if (asset) {
-          let updated = false;
-          const newContent = { ...sec.content };
-          if (newContent.repositoryPath !== asset.repositoryPath) {
-            newContent.repositoryPath = asset.repositoryPath;
-            updated = true;
-          }
-          if (newContent.altText !== asset.altText) {
-            newContent.altText = asset.altText;
-            updated = true;
-          }
-          if (updated) {
-            sectionsChanged = true;
-            return { ...sec, content: newContent };
-          }
-        } else if (sec.content.assetId) {
-          // Referenced asset was deleted, clear the asset reference
-          sectionsChanged = true;
-          return {
-            ...sec,
-            content: {
-              ...sec.content,
-              assetId: '',
-              repositoryPath: ''
-            }
-          };
-        }
-      } else if (sec.type === 'screenshots' && sec.content.images) {
-        // Filter out images whose asset IDs are no longer in the store
-        // (Only if they have an ID and were uploaded through the system)
-        const originalLength = sec.content.images.length;
-        const newImages = sec.content.images
-          .filter((img: any) => !img.id || assetList.some(a => a.id === img.id))
-          .map((img: any) => {
-            if (!img.id) return img;
-            const asset = assetList.find(a => a.id === img.id);
-            if (asset) {
-              let updated = false;
-              const newImg = { ...img };
-              if (newImg.repositoryPath !== asset.repositoryPath) {
-                newImg.repositoryPath = asset.repositoryPath;
-                newImg.url = asset.repositoryPath;
-                updated = true;
-              }
-              if (newImg.alt !== asset.altText) {
-                newImg.alt = asset.altText;
-                updated = true;
-              }
-              if (newImg.previewUrl !== asset.previewUrl) {
-                newImg.previewUrl = asset.previewUrl;
-                updated = true;
-              }
-              if (newImg.fileName !== asset.fileName) {
-                newImg.fileName = asset.fileName;
-                updated = true;
-              }
-              if (updated) {
-                sectionsChanged = true;
-                return newImg;
-              }
-            }
-            return img;
-          });
-
-        if (newImages.length !== originalLength || sectionsChanged) {
-          sectionsChanged = true;
-          return { ...sec, content: { ...sec.content, images: newImages } };
-        }
-      }
-      return sec;
-    });
-
-    if (sectionsChanged) {
-      sections = updatedSections;
     }
   });
 

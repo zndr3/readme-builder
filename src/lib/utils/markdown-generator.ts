@@ -86,16 +86,7 @@ export function compileSection(section: READMESection, allSections: READMESectio
         md += `<table>\n  <tr>\n`;
         images.forEach((img: any) => {
           md += `    <td align="center" valign="top" width="${Math.floor(100 / images.length)}%">\n`;
-          
-          // Use HTML image tag if width/height are specified
-          if (img.width || img.height) {
-            const widthAttr = img.width ? `width="${img.width}"` : '';
-            const heightAttr = img.height ? `height="${img.height}"` : '';
-            md += `      <img src="${img.url}" alt="${img.alt || 'Screenshot'}" ${widthAttr} ${heightAttr} />\n`;
-          } else {
-            md += `      <img src="${img.url}" alt="${img.alt || 'Screenshot'}" />\n`;
-          }
-          
+          md += `      <img src="${img.url}" alt="${img.alt || 'Screenshot'}" />\n`;
           if (img.caption) {
             md += `      <br />\n      <sub><b>${img.caption}</b></sub>\n`;
           }
@@ -104,19 +95,9 @@ export function compileSection(section: READMESection, allSections: READMESectio
         md += `  </tr>\n</table>\n`;
       } else {
         images.forEach((img: any) => {
-          // Use HTML image tag if width/height are specified
-          if (img.width || img.height) {
-            const widthAttr = img.width ? `width="${img.width}"` : '';
-            const heightAttr = img.height ? `height="${img.height}"` : '';
-            md += `<img src="${img.url}" alt="${img.alt || 'Screenshot'}" ${widthAttr} ${heightAttr} />\n`;
-          } else {
-            md += `![${img.alt || 'Screenshot'}](${img.url})\n`;
-          }
-          
+          md += `![${img.alt || 'Screenshot'}](${img.url})\n`;
           if (img.caption) {
             md += `*${img.caption}*\n\n`;
-          } else if (img.width || img.height) {
-            md += `\n`;
           }
         });
       }
